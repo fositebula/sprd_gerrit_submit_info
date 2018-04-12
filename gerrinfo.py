@@ -4,7 +4,8 @@ import json
 import csv
 import requests
 import logging
-from tkinter import Tk
+import time
+from tkinter import *
 from tkinter.messagebox import *
 
 LOG_FILE = "gerritinfo.log"
@@ -72,10 +73,15 @@ def str_to_data(str):
     j_data = json.loads(str)
     return j_data
 
+def to_local_time(time_str):
+    ltime_s = time.mktime(time.strptime(time_str, '%Y-%m-%d %H:%M:%S')) + 8*60*60
+    ltime_d = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ltime_s))
+    return datetime.datetime.strptime(ltime_d, "%Y-%m-%d %H:%M:%S")
+
 def get_submit_date(data):
     date_time_str = data.get("submitted")
-    date_str = date_time_str.split(" ")[0]
-    return datetime.datetime.strptime(date_str, "%Y-%m-%d")
+    date_str = date_time_str.split(".")[0]
+    return to_local_time(date_str)
 
 def populur_data(da):
     print da
@@ -83,6 +89,10 @@ def populur_data(da):
     base_url = "http://review.source.spreadtrum.com/gerrit/#/c/{}"
     Lava_label_ap = da.get("labels").get("LAVA").get("approved")
     Lava_label_re = da.get("labels").get("LAVA").get("rejected")
+    submitted_time = da.get("submitted")
+    ltime = to_local_time(submitted_time.split('.')[0])
+    ldate_time = datetime.datetime.strftime(ltime, "%Y-%m-%d %H:%M:%S")
+    print ldate_time
     if Lava_label_ap:
         lava_label = "Y"
     elif Lava_label_re:
@@ -92,7 +102,7 @@ def populur_data(da):
     pjt = da.get('project')
     owner_email = da.get('owner').get('email')
     brh = da.get('branch')
-    return (base_url.format(da.get("_number")), pjt, brh, owner_email, lava_label, '\'' + da.get("submitted"))
+    return (base_url.format(da.get("_number")), pjt, brh, owner_email, lava_label, '\'' + ldate_time)
 
 def get_branch_project(re_info):
     for key in re_info.keys():
@@ -121,11 +131,11 @@ def main():
             logger.info( "**** "+ "branch "+branch+" project "+ project)
             info_str = get_info(project, branch, status, items)
             infos_data = str_to_data(info_str)
-            now_date = datetime.datetime.now()
+            now_date = datetime.datetime.now().date()
 
             for index, info in enumerate(infos_data):
                 date = get_submit_date(info)
-                yesterday = now_date.date() - datetime.timedelta(days=days)
+                yesterday = now_date - datetime.timedelta(days=days)
                 if yesterday != date.date():
                     continue
                 data_to_write.append(populur_data(info))
@@ -149,5 +159,3 @@ if __name__ == "__main__":
 
     logger_init()
     windows()
-
-
