@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 USER = ""
 USER_PASSWD = ""
 DAYS = 1
-LOGIN_INFO = "./login.info"
+LOGIN_INFO = "login.info"
 CONTEXT = {
     "loginfo":False,
     "loginfo_content":False
@@ -89,6 +89,7 @@ def get_info(project, branch, status, items):
     header = res.request.headers
     print  res.status_code
     if res.status_code == 200:
+        CONTEXT["loginfo_content"] = True
         if project == "*":
             url = "http://review.source.spreadtrum.com/gerrit/changes/?q=status:{status}+branch:{branch}&n={items}&O=81".format(status=status, branch=branch, items=items)
         else:
@@ -196,8 +197,9 @@ def windows():
 def check_login_info():
     global USER_PASSWD, USER
     obj = DES.new(KEY)
-    if os.path.exists(LOGIN_INFO):
-        CONTEXT["loginfo"] = True
+    file_exists = os.path.exists(LOGIN_INFO)
+    CONTEXT["loginfo"] = True
+    if file_exists:
         with open(LOGIN_INFO, 'rb') as fd:
             info_str = fd.read()
             info_data = json.loads(info_str)
