@@ -2,17 +2,28 @@
 import datetime
 import json
 import csv
+import os
+
 import requests
 import logging
 import time
 from tkinter import *
 from tkinter.messagebox import *
+from binascii import b2a_hex, a2b_hex
+from Crypto.Cipher import DES
 
+KEY = "pythonge"
 LOG_FILE = "gerritinfo.log"
 LOG_LEVEL = logging.INFO
 logger = logging.getLogger(__name__)
 USER = ""
 USER_PASSWD = ""
+DAYS = 1
+LOGIN_INFO = "./login.info"
+CONTEXT = {
+    "loginfo":False,
+    "loginfo_content":False
+}
 
 class PermissionException(Exception):
     pass
@@ -23,28 +34,46 @@ class LoginPage(Frame):
         Frame.__init__(self)
         self.username = StringVar()
         self.password = StringVar()
+        self.days = StringVar()
         self.pack()
         self.createForm()
 
     def createForm(self):
-        Label(self).grid(row=0, stick=W, pady=10)
-        Label(self, text='账户: ').grid(row=1, stick=W, pady=10)
-        Entry(self, textvariable=self.username).grid(row=1, column=1, stick=E)
-        Label(self, text='密码: ').grid(row=2, stick=W, pady=10)
-        Entry(self, textvariable=self.password, show='*').grid(row=2, column=1, stick=E)
-        Button(self, text='登录', command=self.loginCheck).grid(row=3, stick=W, pady=10)
-        Button(self, text='退出', command=self.quit).grid(row=3, column=1, stick=E)
+        Label(self, text='注：默认只需输入天数', bg='red').grid(row=0, stick=W, pady=10)
+        Label(self, text='账户: ').grid(row=2, stick=W, pady=10)
+        Entry(self, textvariable=self.username).grid(row=2, column=1, stick=E)
+        Label(self, text='密码: ').grid(row=3, stick=W, pady=10)
+        Entry(self, textvariable=self.password, show='*').grid(row=3, column=1, stick=E)
+        Label(self, text='前几天（max=7）？: ').grid(row=4, stick=W, pady=2)
+        Entry(self, textvariable=self.days).grid(row=4, column=1, stick=E)
+        Button(self, text='登录', command=self.loginCheck).grid(row=6, stick=W, pady=10)
+        Button(self, text='退出', command=self.quit).grid(row=6, column=1, stick=E)
 
     def loginCheck(self):
-        global USER, USER_PASSWD
-        USER = self.username.get()
-        USER_PASSWD = self.password.get()
+        global USER, USER_PASSWD, DAYS
+        user = self.username.get()
+        passwd = self.password.get()
+        print "***", user, passwd
+        if (CONTEXT["loginfo"] == True and CONTEXT["loginfo_content"] == False) and user != "" and passwd != "":
+            USER = user
+            USER_PASSWD = passwd
+            save_login_info(USER, USER_PASSWD)
         try:
+            DAYS = int(self.days.get())
+            if DAYS == 0:
+                showinfo(title='错误', message='请输入正确的天数！')
+                raise ValueError
             main()
             self.quit()
         except PermissionException:
+            if CONTEXT["loginfo"]:
+                CONTEXT["loginfo_content"] = False
             showinfo(title='错误', message='账号或密码错误！')
             print('账号或密码错误！')
+        except ValueError:
+            showinfo(title='错误', message='请输入正确的天数！')
+            print('请输入正确的天数！')
+
 
 def logger_init():
     logger.setLevel(level = LOG_LEVEL)
@@ -55,7 +84,7 @@ def logger_init():
     logger.addHandler(handler)
 
 def get_info(project, branch, status, items):
-    print USER, USER_PASSWD
+    print "@@@", USER, USER_PASSWD
     res = requests.get("http://review.source.spreadtrum.com/gerrit/login/", auth=(USER, USER_PASSWD))
     header = res.request.headers
     print  res.status_code
@@ -89,14 +118,17 @@ def populur_data(da):
     base_url = "http://review.source.spreadtrum.com/gerrit/#/c/{}"
     Lava_label_ap = da.get("labels").get("LAVA").get("approved")
     Lava_label_re = da.get("labels").get("LAVA").get("rejected")
+    Lava_label_di = da.get("labels").get("LAVA").get("disliked")
     submitted_time = da.get("submitted")
     ltime = to_local_time(submitted_time.split('.')[0])
     ldate_time = datetime.datetime.strftime(ltime, "%Y-%m-%d %H:%M:%S")
     print ldate_time
     if Lava_label_ap:
-        lava_label = "Y"
+        lava_label = "\'+1"
     elif Lava_label_re:
-        lava_label = "N"
+        lava_label = "\'-3"
+    elif Lava_label_di:
+        lava_label = "\'-1"
     else:
         lava_label = ""
     pjt = da.get('project')
@@ -122,7 +154,7 @@ def main():
     status = "merged"
     csv_output = "gerritinfo.csv"
     data_to_write = []
-    days = 1
+    days = DAYS
     with open(csv_output, 'wb') as csv_file:
         csv_had = csv.writer(csv_file)
         csv_had.writerow(["gerritid", "project", "branch", "owner", "LAVA", "MergedTime", "备注"])
@@ -135,9 +167,15 @@ def main():
 
             for index, info in enumerate(infos_data):
                 date = get_submit_date(info)
-                yesterday = now_date - datetime.timedelta(days=days)
-                if yesterday != date.date():
-                    continue
+                if days == 1:
+                    yesterday = now_date - datetime.timedelta(days=days)
+                    if yesterday != date.date():
+                        continue
+                elif days > 1:
+                    if ((now_date - date.date()) > datetime.timedelta(days=days))\
+                            or ((now_date - date.date()) <= datetime.timedelta(days=0)):
+                        continue
+
                 data_to_write.append(populur_data(info))
 
         csv_had.writerows(data_to_write)
@@ -155,7 +193,43 @@ def windows():
     page1 = LoginPage()
     root.mainloop()
 
-if __name__ == "__main__":
+def check_login_info():
+    global USER_PASSWD, USER
+    obj = DES.new(KEY)
+    if os.path.exists(LOGIN_INFO):
+        CONTEXT["loginfo"] = True
+        with open(LOGIN_INFO, 'rb') as fd:
+            info_str = fd.read()
+            info_data = json.loads(info_str)
+            get_cryp = a2b_hex(info_data["passwd"])
+            USER_PASSWD = remove_space_key(obj.decrypt(get_cryp))
+            get_cryp = a2b_hex(info_data["user"])
+            USER = remove_space_key(obj.decrypt(get_cryp))
+            pass
 
+def append_space_key(s):
+    sl = 8 - len(s)%8
+    return s + " "*sl
+
+def remove_space_key(s):
+    return s.strip()
+
+def save_login_info(user, passwd):
+    global LOGIN_INFO
+    if  user != "" and passwd != "":
+        users = append_space_key(user)
+        passwds = append_space_key(passwd)
+        print users, passwds
+        obj = DES.new(KEY)
+        cryp = obj.encrypt(users)
+        su = b2a_hex(cryp)
+        cryp = obj.encrypt(passwds)
+        sp = b2a_hex(cryp)
+        with open(LOGIN_INFO, 'w') as fd:
+            s = json.dumps({"passwd":sp, "user":su})
+            fd.write(s)
+
+if __name__ == "__main__":
+    check_login_info()
     logger_init()
     windows()
