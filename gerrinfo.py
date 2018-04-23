@@ -22,7 +22,8 @@ DAYS = 1
 LOGIN_INFO = "login.info"
 CONTEXT = {
     "loginfo":False,
-    "loginfo_content":False
+    "loginfo_content":False,
+    "query_type":"updated",
 }
 
 class PermissionException(Exception):
@@ -91,7 +92,10 @@ def get_info(project, branch, status, items):
     print  res.status_code
     if res.status_code == 200:
         CONTEXT["loginfo_content"] = True
-        if project == "*":
+        if status == "":
+            url = "http://review.source.spreadtrum.com/gerrit/changes/?q=project:{project}+branch:{branch}&n={items}&O=81".format(\
+                project=project, branch=branch, items=items)
+        elif project == "*":
             url = "http://review.source.spreadtrum.com/gerrit/changes/?q=status:{status}+branch:{branch}&n={items}&O=81".format(status=status, branch=branch, items=items)
         else:
             url = "http://review.source.spreadtrum.com/gerrit/changes/?q=status:{status}+project:{project}+branch:{branch}&n={items}&O=81".format(status=status, project=project, branch=branch, items=items)
@@ -114,29 +118,60 @@ def get_submit_date(data):
     date_str = date_time_str.split(".")[0]
     return to_local_time(date_str)
 
+
+def get_updated_date(data):
+    date_time_str = data.get("updated")
+    date_str = date_time_str.split(".")[0]
+    return to_local_time(date_str)
+
 def populur_data(da):
     print da
+    gerrit_status = da.get("status")
     logger.info(da)
-    base_url = "http://review.source.spreadtrum.com/gerrit/#/c/{}"
-    Lava_label_ap = da.get("labels").get("LAVA").get("approved")
-    Lava_label_re = da.get("labels").get("LAVA").get("rejected")
-    Lava_label_di = da.get("labels").get("LAVA").get("disliked")
-    submitted_time = da.get("submitted")
+    if CONTEXT['query_type'] == "":
+        submitted_time = da.get("updated")
+    elif CONTEXT['query_type'] == "submitted":
+        submitted_time = da.get("submitted")
     ltime = to_local_time(submitted_time.split('.')[0])
     ldate_time = datetime.datetime.strftime(ltime, "%Y-%m-%d %H:%M:%S")
     print ldate_time
-    if Lava_label_ap:
-        lava_label = "\'+1"
-    elif Lava_label_re:
-        lava_label = "\'-3"
-    elif Lava_label_di:
-        lava_label = "\'-1"
-    else:
-        lava_label = ""
+
+    lava_label = ""
+    verify_label = ""
+    verifyer = ""
+    if gerrit_status != "ABANDONED":
+        verifyera = da.get("labels").get("Verified").get("approved")
+        verifyerr = da.get("labels").get("Verified").get("rejected")
+
+        if verifyera:
+            verify_label = "\'+1"
+            verifyer = verifyera.get("username")
+        elif verifyerr:
+            verify_label = "\'-1"
+            verifyer = verifyerr.get("username")
+        else:
+            verify_label = ""
+            verifyer = ""
+
+        Lava_label_ap = da.get("labels").get("LAVA").get("approved")
+        Lava_label_re = da.get("labels").get("LAVA").get("rejected")
+        Lava_label_di = da.get("labels").get("LAVA").get("disliked")
+        if Lava_label_ap:
+            lava_label = "\'+1"
+        elif Lava_label_re:
+            lava_label = "\'-3"
+        elif Lava_label_di:
+            lava_label = "\'-1"
+        else:
+            lava_label = ""
+
     pjt = da.get('project')
     owner_email = da.get('owner').get('email')
     brh = da.get('branch')
-    return (base_url.format(da.get("_number")), pjt, brh, owner_email, lava_label, '\'' + ldate_time)
+
+    base_url = "http://review.source.spreadtrum.com/gerrit/#/c/{}"
+    return (base_url.format(da.get("_number")), pjt, brh, owner_email, verifyer, verify_label, lava_label, '\'' + ldate_time, gerrit_status)
+
 
 def get_branch_project(re_info):
     for key in re_info.keys():
@@ -146,6 +181,7 @@ def get_branch_project(re_info):
 def get_time_stamp():
     ltime = time.localtime()
     return time.strftime("%Y%m%d%H%M%S", ltime)
+
 
 def main():
     whitch_get = {
@@ -157,7 +193,8 @@ def main():
     }
 
     items = 100
-    status = "merged"
+    status = ""
+    CONTEXT['query_type'] = status
     csv_output = "gerritinfo_%s.csv"%get_time_stamp()
     data_to_write = []
     days = DAYS
@@ -169,20 +206,27 @@ def main():
         now_date = datetime.datetime.now().date()
 
         for index, info in enumerate(infos_data):
-            date = get_submit_date(info)
+            print info
+            if status == "":
+                _date = get_updated_date(info)
+            elif status == "submitted":
+                _date = get_submit_date(info)
             if days == 1:
                 yesterday = now_date - datetime.timedelta(days=days)
-                if yesterday != date.date():
+                if yesterday != _date.date():
                     continue
             elif days > 1:
-                if ((now_date - date.date()) > datetime.timedelta(days=days))\
-                        or ((now_date - date.date()) <= datetime.timedelta(days=0)):
+                if ((now_date - _date.date()) > datetime.timedelta(days=days))\
+                        or ((now_date - _date.date()) <= datetime.timedelta(days=0)):
                     continue
 
             data_to_write.append(populur_data(info))
     with open(csv_output, 'wb') as csv_file:
         csv_had = csv.writer(csv_file)
-        csv_had.writerow(["gerritid", "project", "branch", "owner", "LAVA", "MergedTime", "备注"])
+        if CONTEXT['query_type'] == "":
+            csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "UpDatedTime", "gerrit status", "备注"])
+        elif CONTEXT['query_type'] == "submitted":
+            csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "MergedTime", "gerrit status", "备注"])
 
         csv_had.writerows(data_to_write)
 
