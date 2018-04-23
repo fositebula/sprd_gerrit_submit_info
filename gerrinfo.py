@@ -161,28 +161,28 @@ def main():
     csv_output = "gerritinfo_%s.csv"%get_time_stamp()
     data_to_write = []
     days = DAYS
+    for branch, project in get_branch_project(whitch_get):
+        print "****", "branch ", branch, "project ", project
+        logger.info( "**** "+ "branch "+branch+" project "+ project)
+        info_str = get_info(project, branch, status, items)
+        infos_data = str_to_data(info_str)
+        now_date = datetime.datetime.now().date()
+
+        for index, info in enumerate(infos_data):
+            date = get_submit_date(info)
+            if days == 1:
+                yesterday = now_date - datetime.timedelta(days=days)
+                if yesterday != date.date():
+                    continue
+            elif days > 1:
+                if ((now_date - date.date()) > datetime.timedelta(days=days))\
+                        or ((now_date - date.date()) <= datetime.timedelta(days=0)):
+                    continue
+
+            data_to_write.append(populur_data(info))
     with open(csv_output, 'wb') as csv_file:
         csv_had = csv.writer(csv_file)
         csv_had.writerow(["gerritid", "project", "branch", "owner", "LAVA", "MergedTime", "备注"])
-        for branch, project in get_branch_project(whitch_get):
-            print "****", "branch ", branch, "project ", project
-            logger.info( "**** "+ "branch "+branch+" project "+ project)
-            info_str = get_info(project, branch, status, items)
-            infos_data = str_to_data(info_str)
-            now_date = datetime.datetime.now().date()
-
-            for index, info in enumerate(infos_data):
-                date = get_submit_date(info)
-                if days == 1:
-                    yesterday = now_date - datetime.timedelta(days=days)
-                    if yesterday != date.date():
-                        continue
-                elif days > 1:
-                    if ((now_date - date.date()) > datetime.timedelta(days=days))\
-                            or ((now_date - date.date()) <= datetime.timedelta(days=0)):
-                        continue
-
-                data_to_write.append(populur_data(info))
 
         csv_had.writerows(data_to_write)
 
