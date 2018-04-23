@@ -3,6 +3,7 @@ import datetime
 import json
 import csv
 import os
+import traceback
 
 import requests
 import logging
@@ -27,6 +28,10 @@ CONTEXT = {
 }
 
 class PermissionException(Exception):
+    pass
+
+
+class DaysException(Exception):
     pass
 
 
@@ -63,7 +68,7 @@ class LoginPage(Frame):
             DAYS = int(self.days.get())
             if DAYS == 0:
                 showinfo(title='错误', message='请输入正确的天数！')
-                raise ValueError
+                raise DaysException
             main()
             showinfo(title='成功', message='获取完成！')
             self.quit()
@@ -72,7 +77,8 @@ class LoginPage(Frame):
                 CONTEXT["loginfo_content"] = False
             showinfo(title='错误', message='账号或密码错误！')
             print('账号或密码错误！')
-        except ValueError:
+        except DaysException:
+            print traceback.print_exc()
             showinfo(title='错误', message='请输入正确的天数！')
             print('请输入正确的天数！')
 
@@ -118,7 +124,6 @@ def get_submit_date(data):
     date_str = date_time_str.split(".")[0]
     return to_local_time(date_str)
 
-
 def get_updated_date(data):
     date_time_str = data.get("updated")
     date_str = date_time_str.split(".")[0]
@@ -130,7 +135,7 @@ def populur_data(da):
     logger.info(da)
     if CONTEXT['query_type'] == "":
         submitted_time = da.get("updated")
-    elif CONTEXT['query_type'] == "submitted":
+    elif CONTEXT['query_type'] == "merged":
         submitted_time = da.get("submitted")
     ltime = to_local_time(submitted_time.split('.')[0])
     ldate_time = datetime.datetime.strftime(ltime, "%Y-%m-%d %H:%M:%S")
@@ -193,7 +198,7 @@ def main():
     }
 
     items = 100
-    status = ""
+    status = "merged"
     CONTEXT['query_type'] = status
     csv_output = "gerritinfo_%s.csv"%get_time_stamp()
     data_to_write = []
@@ -206,10 +211,9 @@ def main():
         now_date = datetime.datetime.now().date()
 
         for index, info in enumerate(infos_data):
-            print info
             if status == "":
                 _date = get_updated_date(info)
-            elif status == "submitted":
+            elif status == "merged":
                 _date = get_submit_date(info)
             if days == 1:
                 yesterday = now_date - datetime.timedelta(days=days)
@@ -225,7 +229,7 @@ def main():
         csv_had = csv.writer(csv_file)
         if CONTEXT['query_type'] == "":
             csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "UpDatedTime", "gerrit status", "备注"])
-        elif CONTEXT['query_type'] == "submitted":
+        elif CONTEXT['query_type'] == "merged":
             csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "MergedTime", "gerrit status", "备注"])
 
         csv_had.writerows(data_to_write)
