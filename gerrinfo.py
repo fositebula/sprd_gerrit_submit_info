@@ -24,7 +24,7 @@ LOGIN_INFO = "login.info"
 CONTEXT = {
     "loginfo":False,
     "loginfo_content":False,
-    "query_type":"updated",
+    "query_type":"",
 }
 
 class PermissionException(Exception):
@@ -133,11 +133,12 @@ def populur_data(da):
     print da
     gerrit_status = da.get("status")
     logger.info(da)
-    if CONTEXT['query_type'] == "":
-        submitted_time = da.get("updated")
-    elif CONTEXT['query_type'] == "merged":
-        submitted_time = da.get("submitted")
-    ltime = to_local_time(submitted_time.split('.')[0])
+    merged_time = ""
+    if gerrit_status == "MERGED":
+        merged_time_str = da.get("submitted")
+        merged_time = to_local_time(merged_time_str.split('.')[0])
+    updated_time = da.get("updated")
+    ltime = to_local_time(updated_time.split('.')[0])
     ldate_time = datetime.datetime.strftime(ltime, "%Y-%m-%d %H:%M:%S")
     print ldate_time
 
@@ -175,7 +176,7 @@ def populur_data(da):
     brh = da.get('branch')
 
     base_url = "http://review.source.spreadtrum.com/gerrit/#/c/{}"
-    return (base_url.format(da.get("_number")), pjt, brh, owner_email, verifyer, verify_label, lava_label, '\'' + ldate_time, gerrit_status)
+    return (base_url.format(da.get("_number")), pjt, brh, owner_email, verifyer, verify_label, lava_label, '\'' + ldate_time, gerrit_status, merged_time)
 
 
 def get_branch_project(re_info):
@@ -198,6 +199,7 @@ def main():
     }
 
     items = 100
+    #select list ["merged", ""]
     status = "merged"
     CONTEXT['query_type'] = status
     csv_output = "gerritinfo_%s.csv"%get_time_stamp()
@@ -228,9 +230,9 @@ def main():
     with open(csv_output, 'wb') as csv_file:
         csv_had = csv.writer(csv_file)
         if CONTEXT['query_type'] == "":
-            csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "UpDatedTime", "gerrit status", "备注"])
+            csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "UpDatedTime", "gerrit status", "merged time", "备注"])
         elif CONTEXT['query_type'] == "merged":
-            csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "MergedTime", "gerrit status", "备注"])
+            csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "MergedTime", "gerrit status", "merged time", "备注"])
 
         csv_had.writerows(data_to_write)
 
