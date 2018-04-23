@@ -64,6 +64,7 @@ class LoginPage(Frame):
                 showinfo(title='错误', message='请输入正确的天数！')
                 raise ValueError
             main()
+            showinfo(title='成功', message='获取完成！')
             self.quit()
         except PermissionException:
             if CONTEXT["loginfo"]:
@@ -142,6 +143,10 @@ def get_branch_project(re_info):
         for item in re_info[key]:
             yield item["branch"], item["project"]
 
+def get_time_stamp():
+    ltime = time.localtime()
+    return time.strftime("%Y%m%d%H%M%S", ltime)
+
 def main():
     whitch_get = {
         "kernel":[{"branch":"sprdlinux4.4", "project":"kernel/common"}],
@@ -153,7 +158,7 @@ def main():
 
     items = 100
     status = "merged"
-    csv_output = "gerritinfo.csv"
+    csv_output = "gerritinfo_%s.csv"%get_time_stamp()
     data_to_write = []
     days = DAYS
     with open(csv_output, 'wb') as csv_file:
