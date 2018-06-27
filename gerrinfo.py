@@ -13,6 +13,7 @@ import time
 import sh
 
 from config import *
+from my_mail import send_mail
 
 class PermissionException(Exception):
     pass
@@ -171,6 +172,7 @@ def job():
                 csv_had.writerow(["gerritid", "project", "branch", "owner", "verify user name", "verify label", "LAVA", "MergedTime", "gerrit status", "备注"])
 
             csv_had.writerows(data_to_write)
+            send_mail('Get Information Completed', 'Get information completed, please check it!', TO_SOMEONE)
     except:
         logger.info(traceback.format_exc())
 

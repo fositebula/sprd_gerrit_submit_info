@@ -2,8 +2,8 @@ import logging
 
 LAVA_JOIN_COMPILE_JSON = '.'
 
-CIRCLE_TIME = 200
-EXEC_TIME='10:15'
+CIRCLE_TIME = 50
+EXEC_TIME='00:15'
 KEY = "pythonge"
 LOG_FILE = "gerritinfo.log"
 LOG_LEVEL = logging.INFO
@@ -19,3 +19,13 @@ CONTEXT = {
     "loginfo_content":False,
     "query_type":"updated",
 }
+
+
+
+TO_SOMEONE = ["dongpl@spreadst.com", "yanqi.zhang@unisoc.com"]
+MAIL_ACCOUNT = "pl.dong@spreadtrum.com"
+PASSWD = "123@ffff"
+MAIL_FROM = "Gerrit Info <pl.dong@unisoc.com>"
+SMPT_HOST = "smtp.unisoc.com"
+SMPT_PORT = 587
+DOCMD = "ehlo"
